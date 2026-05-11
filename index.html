@@ -3,106 +3,58 @@
 <head>
   <title>GitHub Actions Chatbot</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#111; color:#fff; display:flex; flex-direction:column; align-items:center; padding-top:40px; }
-    #chat { width:90%; max-width:600px; height:300px; border:1px solid #444; padding:10px; overflow-y:auto; background:#000; }
-    #inputRow { margin-top:10px; }
-    input { padding:8px; width:260px; }
-    button { padding:8px 12px; margin-left:4px; }
-    .msg { margin:4px 0; }
+    body { font-family: Arial; background:#111; color:#fff; padding:20px; }
+    #chat { border:1px solid #444; padding:10px; height:300px; overflow-y:auto; }
+    input { width:70%; padding:10px; }
+    button { padding:10px; }
     .you { color:#4fd; }
     .bot { color:#fd4; }
   </style>
 </head>
 <body>
-  <h1>GitHub Actions Chatbot</h1>
-  <div id="chat"></div>
 
-  <div id="inputRow">
-    <input id="msgInput" placeholder="Say something...">
-    <button onclick="sendMessage()">Send</button>
-  </div>
+<h2>GitHub Actions Chatbot</h2>
+<div id="chat"></div>
+
+<input id="msg" placeholder="Say something...">
+<button onclick="send()">Send</button>
 
 <script>
 const repo = "presleedees-glitch/guedw";
 const branch = "main";
 
-function addMessage(text, cls) {
-  const chat = document.getElementById("chat");
+function add(text, cls) {
+  const c = document.getElementById("chat");
   const div = document.createElement("div");
-  div.className = "msg " + cls;
+  div.className = cls;
   div.textContent = text;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+  c.appendChild(div);
+  c.scrollTop = c.scrollHeight;
 }
 
-async function fetchReplyOnce() {
-  const url = `https://raw.githubusercontent.com/${repo}/${branch}/outbox.json?cachebust=${Date.now()}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    return null;
-  }
-  try {
+async function send() {
+  const text = document.getElementById("msg").value;
+  if (!text) return;
+  add("You: " + text, "you");
+  add("Bot: thinking...", "bot");
+
+  // You manually update inbox.json in GitHub to trigger the bot.
+  alert("Now go edit inbox.json in GitHub and set message to: " + text);
+
+  // Poll for reply
+  for (let i = 0; i < 20; i++) {
+    const res = await fetch(`https://raw.githubusercontent.com/${repo}/${branch}/outbox.json?cache=${Date.now()}`);
     const data = await res.json();
-    return data.reply || null;
-  } catch {
-    return null;
-  }
-}
-
-async function waitForReply() {
-  for (let i = 0; i < 15; i++) { // ~30s max
-    const reply = await fetchReplyOnce();
-    if (reply) return reply;
+    if (data.reply && data.reply !== "pending") {
+      add("Bot: " + data.reply, "bot");
+      return;
+    }
     await new Promise(r => setTimeout(r, 2000));
   }
-  return "(no reply yet – workflow may have failed)";
+
+  add("Bot: no reply yet", "bot");
 }
-
-async function sendMessage() {
-  const input = document.getElementById("msgInput");
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = "";
-
-  addMessage("You: " + text, "you");
-  addMessage("Bot: (thinking via GitHub Actions...)", "bot");
-
-  // Get current inbox.json SHA
-  const getUrl = `https://api.github.com/repos/${repo}/contents/inbox.json?ref=${branch}`;
-  const getRes = await fetch(getUrl);
-  const file = await getRes.json();
-
-  const newContent = btoa(JSON.stringify({ message: text }, null, 2));
-
-  // IMPORTANT: no token here – this only works if you later move this write behind a backend.
-  // For now, we just demo the read side. Commenting out write to avoid 401.
-  /*
-  await fetch(`https://api.github.com/repos/${repo}/contents/inbox.json`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer YOUR_TOKEN_HERE`
-    },
-    body: JSON.stringify({
-      message: "user message",
-      content: newContent,
-      sha: file.sha,
-      branch
-    })
-  });
-  */
-
-  // For now, simulate inbox.json being changed manually in GitHub to trigger the workflow.
-
-  const reply = await waitForReply();
-  addMessage("Bot: " + reply, "bot");
-}
-
-// initial load: show current reply if any
-(async () => {
-  const reply = await fetchReplyOnce();
-  if (reply) addMessage("Bot: " + reply, "bot");
-})();
 </script>
+
 </body>
 </html>
