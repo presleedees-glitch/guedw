@@ -1,4 +1,4 @@
-name: Chatbot
+name: Guessing Game
 
 permissions:
   contents: write
@@ -9,7 +9,7 @@ on:
       - inbox.json
 
 jobs:
-  reply:
+  play:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,35 +18,61 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Read inbox
-        id: inbox
+      - name: Read player guess
+        id: read_guess
         run: |
-          MSG=$(cat inbox.json | jq -r '.message')
-          echo "msg=$MSG" >> $GITHUB_OUTPUT
+          GUESS=$(cat inbox.json | jq -r '.guess')
+          echo "guess=$GUESS" >> $GITHUB_OUTPUT
 
-      - name: Generate reply
-        id: reply
+      - name: Load or create secret number
+        id: secret
         run: |
-          MSG="${{ steps.inbox.outputs.msg }}"
-
-          if [[ "$MSG" == *"hello"* ]]; then
-            REPLY="Hi there from GitHub Actions!"
-          elif [[ "$MSG" == *"how are you"* ]]; then
-            REPLY="I'm just a workflow, but I'm running fine."
+          if [ -f secret.json ]; then
+            NUM=$(cat secret.json | jq -r '.number')
           else
-            REPLY="You said: $MSG"
+            NUM=$(( (RANDOM % 100) + 1 ))
+            echo "{\"number\": $NUM}" > secret.json
+          fi
+          echo "number=$NUM" >> $GITHUB_OUTPUT
+
+      - name: Compute result
+        id: result
+        run: |
+          GUESS="${{ steps.read_guess.outputs.guess }}"
+          NUM="${{ steps.secret.outputs.number }}"
+
+          if [ -z "$GUESS" ] || [ "$GUESS" = "null" ]; then
+            MSG="No guess yet. Enter a number between 1 and 100."
+            STATUS="waiting"
+          elif [ "$GUESS" -lt "$NUM" ]; then
+            MSG="Too low! Try a higher number."
+            STATUS="higher"
+          elif [ "$GUESS" -gt "$NUM" ]; then
+            MSG="Too high! Try a lower number."
+            STATUS="lower"
+          else
+            MSG="Correct! The number was $NUM. New number generated."
+            STATUS="correct"
+            NEW=$(( (RANDOM % 100) + 1 ))
+            echo "{\"number\": $NEW}" > secret.json
           fi
 
           cat <<EOF > outbox.json
           {
-            "reply": "$REPLY"
+            "message": "$MSG",
+            "lastGuess": $GUESS,
+            "status": "$STATUS"
           }
           EOF
 
-      - name: Commit reply
+      - name: Commit game state
         run: |
-          git config user.name "bot"
-          git config user.email "bot@example.com"
-          git add outbox.json
-          git commit -m "bot reply" || echo "No changes to commit"
+          git config user.name "game-bot"
+          git config user.email "game-bot@example.com"
+
+          # FIX: pull before pushing
+          git pull --rebase
+
+          git add outbox.json secret.json
+          git commit -m "Update game state" || echo "No changes to commit"
           git push
