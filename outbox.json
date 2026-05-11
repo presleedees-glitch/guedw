@@ -1,5 +1,3 @@
 {
-  "message": "Welcome! Make a guess between 1 and 100.",
-  "lastGuess": null,
-  "status": "waiting"
+  "reply": "Hi! The bot is ready."
 }
