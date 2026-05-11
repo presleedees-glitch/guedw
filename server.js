@@ -102,6 +102,7 @@ const server = http.createServer(async (req, res) => {
   res.end("Not found");
 });
 
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log("Chatbot server listening on port", PORT);
 });
