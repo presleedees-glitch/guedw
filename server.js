@@ -1,4 +1,7 @@
 // server.js
+// Tiny rule-based chatbot API for App Lab / Render / Deta
+// Single file, no external deps. Start with: node server.js
+
 const http = require("http");
 const crypto = require("crypto");
 
@@ -14,23 +17,43 @@ const KB = [
   { patterns: ["joke"], reply: "Why did the developer go broke? Because he used up all his cache." }
 ];
 
-function norm(text) { return (text || "").toString().trim().toLowerCase(); }
-function genSessionId() { return crypto.randomBytes(12).toString("hex"); }
+function norm(text) {
+  return (text || "").toString().trim().toLowerCase();
+}
+
+function genSessionId() {
+  return crypto.randomBytes(12).toString("hex");
+}
 
 function tryRemember(session, text) {
   const m = text.match(/^remember\s+(.+?)\s+is\s+(.+)$/i);
-  if (m) { const key = m[1].trim().toLowerCase(); const val = m[2].trim(); session.memory = session.memory || {}; session.memory[key] = val; return `Okay, I'll remember that ${key} is ${val} for this session.`; }
+  if (m) {
+    const key = m[1].trim().toLowerCase();
+    const val = m[2].trim();
+    session.memory = session.memory || {};
+    session.memory[key] = val;
+    return `Okay, I'll remember that ${key} is ${val} for this session.`;
+  }
   return null;
 }
 
 function tryRecall(session, text) {
   const m = text.match(/^(what is|what's|who is|who's)\s+(.+)\??$/i);
-  if (m) { const key = m[2].trim().toLowerCase(); if (session.memory && session.memory[key]) return `${key} is ${session.memory[key]}.`; }
+  if (m) {
+    const key = m[2].trim().toLowerCase();
+    if (session.memory && session.memory[key]) {
+      return `${key} is ${session.memory[key]}.`;
+    }
+  }
   return null;
 }
 
 function kbReply(text) {
-  for (const item of KB) for (const p of item.patterns) if (text.includes(p)) return item.reply;
+  for (const item of KB) {
+    for (const p of item.patterns) {
+      if (text.includes(p)) return item.reply;
+    }
+  }
   return null;
 }
 
@@ -58,7 +81,10 @@ async function handleChat(req, res, body) {
     message = (message || "").toString().trim();
     if (!message) return sendJson(res, 400, { error: "message required" });
 
-    if (!sessionId || !sessions[sessionId]) { sessionId = genSessionId(); sessions[sessionId] = { id: sessionId, history: [], memory: {} }; }
+    if (!sessionId || !sessions[sessionId]) {
+      sessionId = genSessionId();
+      sessions[sessionId] = { id: sessionId, history: [], memory: {} };
+    }
     const session = sessions[sessionId];
 
     session.history.push({ role: "user", text: message, ts: Date.now() });
@@ -102,7 +128,6 @@ const server = http.createServer(async (req, res) => {
   res.end("Not found");
 });
 
-const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log("Chatbot server listening on port", PORT);
 });
