@@ -31,7 +31,7 @@ jobs:
           if [[ "$MSG" == *"hello"* ]]; then
             REPLY="Hi there!"
           elif [[ "$MSG" == *"how are you"* ]]; then
-            REPLY="I'm running inside GitHub Actions, so I'm great."
+            REPLY="I'm running inside GitHub Actions, so I'm doing great."
           else
             REPLY="You said: $MSG"
           fi
@@ -43,8 +43,17 @@ jobs:
           git config user.name "bot"
           git config user.email "bot@example.com"
 
-          git pull --rebase
+          # Stage changes BEFORE pulling
+          git add outbox.json || true
 
+          # Pull safely with autostash to avoid unstaged-change errors
+          git pull --rebase --autostash
+
+          # Stage again after rebase
           git add outbox.json
-          git commit -m "bot reply" || echo "No changes"
+
+          # Commit safely
+          git commit -m "bot reply" || echo "No changes to commit"
+
+          # Push final result
           git push
