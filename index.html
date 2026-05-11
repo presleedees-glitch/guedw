@@ -1,75 +1,108 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>GitHub Actions Guessing Game</title>
+  <title>GitHub Actions Chatbot</title>
   <style>
-    body { font-family: Arial; background:#111; color:#fff; text-align:center; padding-top:40px; }
-    input { padding:8px; font-size:16px; }
-    button { padding:8px 12px; font-size:16px; margin-left:4px; }
-    #log { margin-top:20px; }
+    body { font-family: Arial, sans-serif; background:#111; color:#fff; display:flex; flex-direction:column; align-items:center; padding-top:40px; }
+    #chat { width:90%; max-width:600px; height:300px; border:1px solid #444; padding:10px; overflow-y:auto; background:#000; }
+    #inputRow { margin-top:10px; }
+    input { padding:8px; width:260px; }
+    button { padding:8px 12px; margin-left:4px; }
+    .msg { margin:4px 0; }
+    .you { color:#4fd; }
+    .bot { color:#fd4; }
   </style>
 </head>
 <body>
-  <h1>Guess the Number (via GitHub Actions)</h1>
-  <p id="status">Loading game...</p>
+  <h1>GitHub Actions Chatbot</h1>
+  <div id="chat"></div>
 
-  <input id="guessInput" type="number" placeholder="Enter a number 1-100">
-  <button onclick="sendGuess()">Guess</button>
-
-  <div id="log"></div>
+  <div id="inputRow">
+    <input id="msgInput" placeholder="Say something...">
+    <button onclick="sendMessage()">Send</button>
+  </div>
 
 <script>
-const repo = "YOUR_USERNAME/YOUR_REPO";
+const repo = "presleedees-glitch/guedw";
 const branch = "main";
-const token = "YOUR_GITHUB_TOKEN"; // or use a backend proxy instead of exposing this
 
-async function fetchState() {
-  const res = await fetch(`https://raw.githubusercontent.com/${repo}/${branch}/outbox.json?cachebust=${Date.now()}`);
-  const data = await res.json();
-  document.getElementById("status").innerText = data.message;
-  if (data.lastGuess !== null) {
-    addLog(`Last guess: ${data.lastGuess} → ${data.status}`);
+function addMessage(text, cls) {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function fetchReplyOnce() {
+  const url = `https://raw.githubusercontent.com/${repo}/${branch}/outbox.json?cachebust=${Date.now()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    return null;
+  }
+  try {
+    const data = await res.json();
+    return data.reply || null;
+  } catch {
+    return null;
   }
 }
 
-async function sendGuess() {
-  const val = document.getElementById("guessInput").value;
-  if (!val) return;
+async function waitForReply() {
+  for (let i = 0; i < 15; i++) { // ~30s max
+    const reply = await fetchReplyOnce();
+    if (reply) return reply;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return "(no reply yet – workflow may have failed)";
+}
 
-  addLog(`You guessed: ${val}`);
+async function sendMessage() {
+  const input = document.getElementById("msgInput");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
 
-  // write guess to inbox.json via GitHub API
-  const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/inbox.json?ref=${branch}`);
+  addMessage("You: " + text, "you");
+  addMessage("Bot: (thinking via GitHub Actions...)", "bot");
+
+  // Get current inbox.json SHA
+  const getUrl = `https://api.github.com/repos/${repo}/contents/inbox.json?ref=${branch}`;
+  const getRes = await fetch(getUrl);
   const file = await getRes.json();
 
-  const newContent = btoa(JSON.stringify({ guess: Number(val) }, null, 2));
+  const newContent = btoa(JSON.stringify({ message: text }, null, 2));
 
+  // IMPORTANT: no token here – this only works if you later move this write behind a backend.
+  // For now, we just demo the read side. Commenting out write to avoid 401.
+  /*
   await fetch(`https://api.github.com/repos/${repo}/contents/inbox.json`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`
+      "Authorization": `Bearer YOUR_TOKEN_HERE`
     },
     body: JSON.stringify({
-      message: "player guess",
+      message: "user message",
       content: newContent,
       sha: file.sha,
       branch
     })
   });
+  */
 
-  // wait a bit, then fetch updated game state
-  setTimeout(fetchState, 4000);
+  // For now, simulate inbox.json being changed manually in GitHub to trigger the workflow.
+
+  const reply = await waitForReply();
+  addMessage("Bot: " + reply, "bot");
 }
 
-function addLog(text) {
-  const log = document.getElementById("log");
-  const div = document.createElement("div");
-  div.textContent = text;
-  log.appendChild(div);
-}
-
-fetchState();
+// initial load: show current reply if any
+(async () => {
+  const reply = await fetchReplyOnce();
+  if (reply) addMessage("Bot: " + reply, "bot");
+})();
 </script>
 </body>
 </html>
