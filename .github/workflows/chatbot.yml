@@ -1,0 +1,37 @@
+name: Chatbot
+
+on:
+  push:
+    paths:
+      - inbox.json
+
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Read inbox
+        id: inbox
+        run: |
+          echo "msg=$(cat inbox.json | jq -r '.message')" >> $GITHUB_OUTPUT
+
+      - name: Generate reply
+        id: reply
+        run: |
+          MSG="${{ steps.inbox.outputs.msg }}"
+          # Simple rule-based bot
+          if [[ "$MSG" == *"hello"* ]]; then
+            REPLY="Hi there!"
+          else
+            REPLY="I heard you say: $MSG"
+          fi
+          echo "{\"reply\":\"$REPLY\"}" > outbox.json
+
+      - name: Commit reply
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@example.com"
+          git add outbox.json
+          git commit -m "bot reply"
+          git push
