@@ -1,1 +1,5 @@
-{"reply":"I heard you say: null"}
+{
+  "message": "Welcome! Make a guess between 1 and 100.",
+  "lastGuess": null,
+  "status": "waiting"
+}
